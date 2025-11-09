@@ -11,7 +11,7 @@ import pandas as pd
 
 st.set_page_config(page_title="Méthode AHP - Comparaison Personnalisée", layout="wide")
 
-st.title("📊 Méthode AHP – Matrice de comparaison personnalisée")
+st.title("📊 Méthode AHP – Matrice de comparaison")
 st.markdown("Cette application calcule les poids des critères selon la méthode **AHP (Analytic Hierarchy Process)**.")
 
 # --- Étape 1 : Nombre de critères ---
@@ -37,7 +37,7 @@ for i in range(n):
             val = 1.0
         elif i < j:
             val = st.number_input(f"Importance de **{criteria_names[i]}** par rapport à **{criteria_names[j]}**", 
-                                   min_value=1/9.0, max_value=9.0, value=1.0, step=0.1, key=f"{i}-{j}")
+                                   min_value=0, max_value=9.0, value=1.0, step=0.1, key=f"{i}-{j}")
         else:
             val = 1 / matrix[j][i] if j < i else 1.0
         row.append(val)
@@ -81,4 +81,5 @@ else:
 
 st.markdown("---")
 st.caption("Développé par Aya 💡 | AHP en Streamlit")
+
 
