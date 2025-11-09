@@ -1,85 +1,72 @@
 # app.py
-# --- Application Streamlit pour la méthode AHP ---
-# Instructions :
-# 1️⃣ Crée un dépôt GitHub avec ce fichier.
-# 2️⃣ Va sur https://share.streamlit.io -> Connecte ton GitHub -> choisis ton dépôt.
-# 3️⃣ L'application sera hébergée automatiquement.
+# Application Streamlit pour la méthode AHP avec saisie directe de la matrice
 
 import streamlit as st
 import numpy as np
 import pandas as pd
 
-st.set_page_config(page_title="Méthode AHP - Comparaison Personnalisée", layout="wide")
+st.set_page_config(page_title="AHP – Matrice personnalisée", layout="wide")
 
-st.title("📊 Méthode AHP – Matrice de comparaison")
-st.markdown("Cette application calcule les poids des critères selon la méthode **AHP (Analytic Hierarchy Process)**.")
+st.title("📊 Méthode AHP – Saisie directe de la matrice")
+st.markdown("Tapez directement votre matrice de comparaison **AHP** (valeurs séparées par espace ou virgule).")
 
 # --- Étape 1 : Nombre de critères ---
 n = st.number_input("🧮 Entrez le nombre de critères :", min_value=2, max_value=10, value=3)
 
-criteria_names = [f"Critère {i+1}" for i in range(n)]
-st.write("### 🔤 Noms des critères")
-criteria_names = [st.text_input(f"Nom du critère {i+1}", value=criteria_names[i]) for i in range(n)]
+criteria_names = [st.text_input(f"Nom du critère {i+1}", f"Critère {i+1}") for i in range(n)]
 
 st.divider()
 
-# --- Étape 2 : Matrice de comparaison pair à pair ---
-st.write("### 📋 Entrez la matrice de comparaison AHP")
+# --- Étape 2 : Saisie de la matrice ---
+st.markdown(f"### 📋 Entrez la matrice de comparaison ({n}×{n})")
 
-default_matrix = np.ones((n, n))
+example = "\n".join([" ".join(["1" if i == j else "1" for j in range(n)]) for i in range(n)])
+matrix_text = st.text_area(
+    "Collez votre matrice (chaque ligne séparée par une nouvelle ligne) :",
+    value=example,
+    height=150
+)
 
-# Création d’un tableau interactif
-matrix = []
-for i in range(n):
-    row = []
-    for j in range(n):
-        if i == j:
-            val = 1.0
-        elif i < j:
-            val = st.number_input(f"Importance de **{criteria_names[i]}** par rapport à **{criteria_names[j]}**", 
-                                   min_value=0, max_value=9.0, value=1.0, step=0.1, key=f"{i}-{j}")
+# --- Étape 3 : Conversion en matrice numérique ---
+try:
+    lines = [line.replace(",", " ").split() for line in matrix_text.strip().split("\n")]
+    matrix = np.array([[float(x) for x in line] for line in lines])
+
+    if matrix.shape != (n, n):
+        st.error(f"⚠️ La matrice doit être de taille {n}x{n}. Vous avez entré {matrix.shape}.")
+    else:
+        st.success("✅ Matrice correctement lue.")
+        st.dataframe(pd.DataFrame(matrix, index=criteria_names, columns=criteria_names).round(4))
+
+        # --- Étape 4 : Calcul AHP ---
+        eigvals, eigvecs = np.linalg.eig(matrix)
+        max_eigval = np.max(eigvals.real)
+        max_eigvec = eigvecs[:, eigvals.real.argmax()].real
+        weights = max_eigvec / np.sum(max_eigvec)
+
+        # --- Cohérence ---
+        RI_values = {1: 0.0, 2: 0.0, 3: 0.58, 4: 0.90, 5: 1.12, 6: 1.24, 7: 1.32, 8: 1.41, 9: 1.45, 10: 1.49}
+        CI = (max_eigval - n) / (n - 1)
+        RI = RI_values.get(n, 1.49)
+        CR = CI / RI if RI != 0 else 0
+
+        # --- Résultats ---
+        st.subheader("📈 Résultats AHP")
+        result_df = pd.DataFrame({
+            "Critère": criteria_names,
+            "Poids": weights.round(4)
+        }).sort_values(by="Poids", ascending=False)
+
+        st.dataframe(result_df, use_container_width=True)
+
+        st.markdown(f"**λmax** : {max_eigval:.4f}  **CI** : {CI:.4f}  **CR** : {CR:.4f}")
+        if CR < 0.1:
+            st.success("✅ Matrice cohérente (CR < 0.1).")
         else:
-            val = 1 / matrix[j][i] if j < i else 1.0
-        row.append(val)
-    matrix.append(row)
+            st.warning("⚠️ Matrice incohérente (CR ≥ 0.1). Revérifiez vos valeurs.")
 
-matrix = np.array(matrix)
-st.write("#### 🧩 Matrice de comparaison :")
-st.dataframe(pd.DataFrame(matrix, index=criteria_names, columns=criteria_names).round(3))
-
-# --- Étape 3 : Calcul des poids AHP ---
-eigvals, eigvecs = np.linalg.eig(matrix)
-max_eigval = np.max(eigvals.real)
-max_eigvec = eigvecs[:, eigvals.real.argmax()].real
-weights = max_eigvec / np.sum(max_eigvec)
-
-# --- Étape 4 : Vérification de la cohérence ---
-RI_values = {1: 0.0, 2: 0.0, 3: 0.58, 4: 0.90, 5: 1.12, 6: 1.24, 7: 1.32, 8: 1.41, 9: 1.45, 10: 1.49}
-CI = (max_eigval - n) / (n - 1)
-RI = RI_values.get(n, 1.49)
-CR = CI / RI if RI != 0 else 0
-
-st.divider()
-
-# --- Résultats ---
-st.subheader("📈 Résultats AHP")
-result_df = pd.DataFrame({
-    "Critère": criteria_names,
-    "Poids": weights.round(4)
-}).sort_values(by="Poids", ascending=False)
-
-st.dataframe(result_df, use_container_width=True)
-
-st.markdown(f"**Valeur propre maximale (λmax)** : {max_eigval:.4f}")
-st.markdown(f"**Indice de cohérence (CI)** : {CI:.4f}")
-st.markdown(f"**Taux de cohérence (CR)** : {CR:.4f}")
-
-if CR < 0.1:
-    st.success("✅ La matrice est cohérente (CR < 0.1).")
-else:
-    st.error("⚠️ La matrice est incohérente (CR ≥ 0.1). Revérifiez vos comparaisons.")
+except Exception as e:
+    st.error(f"Erreur lors de la lecture de la matrice : {e}")
 
 st.markdown("---")
-st.caption("Développé par Aya 💡 | AHP en Streamlit")
-
-
+st.caption("Développé par Aya 💡 | AHP simplifié avec saisie directe")
